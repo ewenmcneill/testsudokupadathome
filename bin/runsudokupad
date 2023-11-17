@@ -14,13 +14,28 @@
 # LOCAL_SUDOKUPAD to be set to point at that directory.  That directory is
 # served up via the webserver.
 #
+# Within that directory, api/puzzle is expected to be symlinks to the
+# PUZZLE_DIR/sudokupad/ directory, for caching the puzzle definitions.
+#
+# Eg, setup with:
+#
+# (cd local-sudokupad && mkdir -p api && cd api &&
+#  ln -s ../../puzzles/sudokupad puzzle)
+#
 # There are *all sorts* of random SudokuPad URL formats, including ones
 # literally shoved onto the end of the URL.  So we cannot just
-# use the basic http.server.  Instead we handle a 404 by serving up 
+# use the basic http.server.  Instead we handle a 404 by serving up
 # the index page, and hoping for the best.
 #
 # 404 handling borrowed from:
 # https://github.com/clokep/SimpleHTTP404Server/blob/master/SimpleHTTP404Server.py
+#
+# NOTE: to test this without auto-running in screen, fake a screen terminal
+# with:
+#
+# STY=1 runsudokupad
+#
+# (this greatly simplifies debugging Python errors)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-07
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
@@ -48,7 +63,7 @@ if [ -n "${STY}" ]; then
   # We are in the screen session, so we should fall through to starting the
   # webserver.
   # echo "We are the screen session \o/"            # Debugging
-  : 
+  :
 elif screen -ls | grep -q "${SCREENNAME}"; then
   # Is the screen session running already?
   echo "SudokuPad webserver is runnning on localhost:${WEB_PORT}"
@@ -76,9 +91,10 @@ import socketserver
 import socket
 import urllib.request
 
-PORT = int(os.environ.get('WEB_PORT', 8000))
-PAGE_404 = os.environ.get('PAGE_404', '404.html')
-UPSTREAM = os.environ.get('SUDOKUPAD', 'https://sudokupad.app')
+PORT       = int(os.environ.get('WEB_PORT', 8000))
+PAGE_404   = os.environ.get('PAGE_404', '404.html')
+UPSTREAM   = os.environ.get('SUDOKUPAD', 'https://sudokupad.app')
+PUZZLE_DIR = os.environ.get('PUZZLE_DIR', '../puzzles')
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -86,17 +102,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = self.translate_path(self.path)
 
         # If the path doesn't exist, fake it to be the 404 page,
-	# unless it is /api/puzzle/PUZZLEID, where we proxy the request
+        # unless it is /api/puzzle/PUZZLEID, where we proxy the request
         # to the upstream SudokuPad puzzle server to get the puzzle
-	# definition
-	#
+        # definition as a file that we can serve up
+        #
         if not os.path.exists(path):
             if self.path.startswith('/api/puzzle/'):
-                return self.get_api_puzzle()
+                # Try to fetch puzzle; if this fails we will return a real 404
+                if self.get_api_puzzle():
+                   pass
 
-            self.path = PAGE_404
+            else:
+                # Not a file or puzzle URL, redirect to index page placeholder
+                self.path = PAGE_404
 
-        # print("Serving: {0}".format(self.path))
+        # print("Serving: {0}".format(self.path))                  # DEBUG
 
         # Call the superclass methods to actually serve the page.
         try:
@@ -105,26 +125,45 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             pass
 
     def get_api_puzzle(self):
-        print("Fetching from {0}{1}".format(UPSTREAM, self.path))  # DEBUG
+        print("Fetching puzzle definition from {0}{1}".format(
+               UPSTREAM, self.path))  # DEBUG
+
         try:
             with urllib.request.urlopen(UPSTREAM + self.path) as f:
                 body = f.read()
 
-                del f.headers['transfer-encoding'] # Avoid chunked transfer encoding
-                f.headers['Content-Length'] = str(len(body))
-                headers = f.headers.as_bytes()
+                # Calculate where to save the retrieved URL
+                output_file = os.path.join(
+                    PUZZLE_DIR,
+                    'sudokupad',
+                    *(self.path.replace('/api/puzzle/', '').split('/'))
+                )
+                output_dir  = os.path.dirname(output_file)
 
-                # DEBUG: print the result to be returned
-                # print("Returning:\nHTTP/1.1 {0} {1}\n{2}{3}".format(
-                #     f.status, f.reason, headers.decode('utf8'), body.decode('utf8')))
+                #print("Writing puzzle definition to {0} (in {1})".format(
+                #          output_file, output_dir))              # DEBUG
 
-                # Write out the headers and result
-                self.wfile.write('HTTP/1.1 {0} {1}\n'.format(f.status, f.reason).encode('utf8'))
-                self.wfile.write(headers)
-                self.wfile.write(body)
+                # Ensure the directory exists
+                try:
+                    os.makedirs(output_dir)
+                except FileExistsError:
+                    pass
+
+                # Save the puzzle definition to a file we can serve up
+                #
+                # NOTE: the puzzle definition returned by /api/puzzle/...
+                # is expected to *NOT* have a trailing newline; and including
+                # a trailing newline will cause the puzzle defintion not to
+                # parse, resulting in a "404" in the puzzle (ie, error loading)
+                #
+                with open(output_file, "wb") as puzzle_definition:
+                    puzzle_definition.write(body)
+
+                return True
         except urllib.error.HTTPError:
             print("Could not retrieve: {0}".format(self.path))
             self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            return False
 
 class SaneTCPServer(socketserver.TCPServer):
     def __init__(self, *args, **kwargs):
