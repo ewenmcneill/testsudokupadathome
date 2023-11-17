@@ -1,0 +1,51 @@
+#! /bin/sh
+# Check if sudokupad has included keyboard tracking fixes
+#
+# Usage:
+#
+# issudokupadfixed
+# issudokupadfixed app.crackingthecryptic.com
+# issudokupadfixed sudokupad.app
+# issudokupadfixed beta.sudokupad.app
+#
+# Specifically it checks:
+#
+# - whether the set key-state / clear key-state is in a useful order or not
+# - wehther the modifier key state is resync'd before processing number keys
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-09
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2023-10-10
+#---------------------------------------------------------------------------
+
+DOMAIN="${1:-app.crackingthecryptic.com}"
+
+SUDOKUPAD=$(curl -s "https://${DOMAIN}/script.js")
+
+P_UPDATEKEYS=$(echo "${SUDOKUPAD}" | grep -A 7 "P.updateKeys" |
+               egrep "this.keys.*keydown|event.ctrlKey.*false")
+
+P_KEYDOWN=$(echo "${SUDOKUPAD}" | grep -A 30 "P.handleKeydown" |
+            grep -A 99 "App.reDigit.test" | sed '/^[[:space:]]*}/Q')
+
+#echo "${P_UPDATEKEYS}"
+#echo "${P_KEYDOWN}"
+
+# September 2023 state
+P_UPDATEKEYS_BROKEN="false"
+P_KEYDOWN_BROKEN="true"
+
+if echo "${P_UPDATEKEYS}" | head -1 | grep -q "keydown"; then
+  P_UPDATEKEYS_BROKEN="true"
+fi
+
+if echo "${P_KEYDOWN}" | grep -q "this.updateKeys"; then
+  P_KEYDOWN_BROKEN="false"
+fi
+
+if ${P_UPDATEKEYS_BROKEN}; then
+  echo ":-(   No, sudokupad is still broken"
+elif ${P_KEYDOWN_BROKEN}; then
+  echo ":-/   Sudokupad is no more broken than normal"
+else
+  echo "\o/   Sudokupad seems to be fixed"
+fi
