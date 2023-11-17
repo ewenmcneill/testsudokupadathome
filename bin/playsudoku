@@ -5,7 +5,7 @@
 # results of these tinyurl links, for faster reopening the puzzles, and
 # to avoid TinyURL being a single point of failure for replaying puzzles.
 #
-# There's also a SudokuPad shortlink service, which has URLs like:
+# There's also a SudokuPad shorturl service, which users URLs like:
 #
 # https://sudokupad.app/588su8gaub
 # https://sudokupad.app/SETTER/TITLE
@@ -16,16 +16,19 @@
 # https://sudokupad.app/api/puzzle/588su8gaub
 # https://sudokupad.app/api/puzzle/SETTER/TITLE
 #
-# and that API returns text string that is the puzzle itself (eg, that might
-# otherwise have been in the URL).  Our puzzle server can now proxy those
-# api/puzzle/... requests, so we do not expand the puzzle definitions here.
+# and that API returns text string that is the puzzle definition (eg, that 
+# might otherwise have been part of the URL).  Our puzzle server can now
+# proxy those api/puzzle/... requests to the online sudokupad, so we do
+# not expand the puzzle definitions here.
+#
+# To override defaults, set:
+#
+# PUZZLE_DIR to a directory under which to save puzzle defintions
+# FIXED_SUDOKUPAD to a base URL for the local SudokuPad local webserver
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-09
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
 #---------------------------------------------------------------------------
-
-FIXED_SUDOKUPAD="${FIXED_SUDOKUPAD:-http://localhost:9876/}"
-URL="$1"
 
 BIN_DIR=$(dirname $0)
 if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
@@ -36,6 +39,8 @@ case "${BIN_DIR}" in
 esac
 
 PUZZLE_DIR="${PUZZLE_DIR:-${BIN_DIR}/../puzzles}"
+FIXED_SUDOKUPAD="${FIXED_SUDOKUPAD:-http://localhost:9876/}"
+URL="$1"
 
 case "${URL}" in
   # Get redirect from tinyurl to the full puzzle link, and cache the result
@@ -56,41 +61,6 @@ case "${URL}" in
           echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
       fi
       ;;
-
-  # Expand https://sudokupad.app/1234567890 puzzle ID into full puzzle link
-  #
-  # The data returned by api/puzzle/PUZZLEID appears to be understood when
-  # just appended to the base site, so that is what we do.  (It is unclear
-  # why it was not just a regular redirect.)
-  #
-  # 2023-11-05 - disabled this puzzle ID expansion, now web server can proxy it
-  #
-  #*sudokupad.app/[a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9])
-  #           PUZZLE_ID=$(echo "$URL" | sed 's/^.*\///;')
-  #           SITE_NAME=$(echo "$URL" | sed 's/\/[^\/]*$//;')
-  #           #echo "Puzzle ID: ${PUZZLE_ID}"    # Debugging
-  #           #echo "Site Name: ${SITE_NAME}"    # Debugging
-  #           FULL_PUZZLE=$(curl -s "${SITE_NAME}/api/puzzle/${PUZZLE_ID}")
-  #           URL="${SITE_NAME}/${FULL_PUZZLE}"
-  #           ;;
-
-  # Expand https://app.crackingthecryptic.com/sudoku/123456789 puzzle ID
-  # into full puzzle link
-  #
-  # The data returned by api/puzzle/PUZZLEID appears to be understood when
-  # just appended to the base site, so that is what we do.  (It is unclear
-  # why it was not just a regular redirect.)
-  #
-  # 2023-11-05 - disabled this puzzle ID expansion, now web server can proxy it
-  #
-  #*app.crackingthecryptic.com/sudoku/[a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9])
-  #           PUZZLE_ID=$(echo "$URL" | sed 's/^.*\///; s/sudoku\///;')
-  #           SITE_NAME=$(echo "$URL" | sed 's/\/[^\/]*$//; s/\/sudoku//;')
-  #           #echo "Puzzle ID: ${PUZZLE_ID}"    # Debugging
-  #           #echo "Site Name: ${SITE_NAME}"    # Debugging
-  #           FULL_PUZZLE=$(curl -s "${SITE_NAME}/api/puzzle/${PUZZLE_ID}")
-  #           URL="${SITE_NAME}/${FULL_PUZZLE}"
-  #           ;;
 
   # Just translate the domain name in these URLs
   *sudokupad.app*) ;;
