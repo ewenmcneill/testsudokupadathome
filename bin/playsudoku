@@ -1,0 +1,108 @@
+#! /bin/sh
+# Expand out Sudoku TinyURL links, and redirect to local puzzle solver
+#
+# TinyURL is just a redirector to the full puzzle link.  We cache the
+# results of these tinyurl links, for faster reopening the puzzles, and
+# to avoid TinyURL being a single point of failure for replaying puzzles.
+#
+# There's also a SudokuPad shortlink service, which has URLs like:
+#
+# https://sudokupad.app/588su8gaub
+# https://sudokupad.app/SETTER/TITLE
+#
+# which appear to work by fetching a regular page/JS, and *then* looking
+# up the shortlink at, eg
+#
+# https://sudokupad.app/api/puzzle/588su8gaub
+# https://sudokupad.app/api/puzzle/SETTER/TITLE
+#
+# and that API returns text string that is the puzzle itself (eg, that might
+# otherwise have been in the URL).  Our puzzle server can now proxy those
+# api/puzzle/... requests, so we do not expand the puzzle definitions here.
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-09
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+#---------------------------------------------------------------------------
+
+FIXED_SUDOKUPAD="${FIXED_SUDOKUPAD:-http://localhost:9876/}"
+URL="$1"
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+
+PUZZLE_DIR="${PUZZLE_DIR:-${BIN_DIR}/../puzzles}"
+
+case "${URL}" in
+  # Get redirect from tinyurl to the full puzzle link, and cache the result
+  # (use the cached value if we already have it)
+  #
+  *tinyurl*) 
+      SITENAME="tinyurl.com"
+      SHORTCODE="$(echo ${URL} | sed 's/^.*tinyurl.com\///;')"
+
+      mkdir -p "${PUZZLE_DIR}/${SITENAME}"
+
+      if [ -r "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}" ]; then
+          # echo "Using cached value for ${SITENAME}/${SHORTCODE}" # DEBUG
+          URL=$(cat "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}")
+      else
+          # echo "Saveing value for ${SITENAME}/${SHORTCODE}"      # DEBUG
+          URL=$(curl -si "${URL}" | grep '^location: ' | sed 's/^location: //;')
+          echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+      fi
+      ;;
+
+  # Expand https://sudokupad.app/1234567890 puzzle ID into full puzzle link
+  #
+  # The data returned by api/puzzle/PUZZLEID appears to be understood when
+  # just appended to the base site, so that is what we do.  (It is unclear
+  # why it was not just a regular redirect.)
+  #
+  # 2023-11-05 - disabled this puzzle ID expansion, now web server can proxy it
+  #
+  #*sudokupad.app/[a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9])
+  #           PUZZLE_ID=$(echo "$URL" | sed 's/^.*\///;')
+  #           SITE_NAME=$(echo "$URL" | sed 's/\/[^\/]*$//;')
+  #           #echo "Puzzle ID: ${PUZZLE_ID}"    # Debugging
+  #           #echo "Site Name: ${SITE_NAME}"    # Debugging
+  #           FULL_PUZZLE=$(curl -s "${SITE_NAME}/api/puzzle/${PUZZLE_ID}")
+  #           URL="${SITE_NAME}/${FULL_PUZZLE}"
+  #           ;;
+
+  # Expand https://app.crackingthecryptic.com/sudoku/123456789 puzzle ID
+  # into full puzzle link
+  #
+  # The data returned by api/puzzle/PUZZLEID appears to be understood when
+  # just appended to the base site, so that is what we do.  (It is unclear
+  # why it was not just a regular redirect.)
+  #
+  # 2023-11-05 - disabled this puzzle ID expansion, now web server can proxy it
+  #
+  #*app.crackingthecryptic.com/sudoku/[a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9][a-z0-9])
+  #           PUZZLE_ID=$(echo "$URL" | sed 's/^.*\///; s/sudoku\///;')
+  #           SITE_NAME=$(echo "$URL" | sed 's/\/[^\/]*$//; s/\/sudoku//;')
+  #           #echo "Puzzle ID: ${PUZZLE_ID}"    # Debugging
+  #           #echo "Site Name: ${SITE_NAME}"    # Debugging
+  #           FULL_PUZZLE=$(curl -s "${SITE_NAME}/api/puzzle/${PUZZLE_ID}")
+  #           URL="${SITE_NAME}/${FULL_PUZZLE}"
+  #           ;;
+
+  # Just translate the domain name in these URLs
+  *sudokupad.app*) ;;
+  *app.ctrackingthecryptic.com*) ;;
+
+  *)         echo "Usage: $0 SHORTURL"; exit 1; ;;
+esac
+
+# Fix up the URL received to point at our fixed up local copy of SudokuPad
+# and then put that into the clipboard.
+#
+BETTER_URL=$(echo "${URL}" | sed "s|^[^/]*//[^/]*/|${FIXED_SUDOKUPAD}|")
+
+echo "${BETTER_URL}" | xclip -i -selection "clip-board"
+echo "Better sudokupad URL copied into X clip board"
