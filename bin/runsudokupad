@@ -1,0 +1,143 @@
+#! /bin/bash
+# Run webserver for local (fixed) copy of Sudoku Pad in a screen session
+#
+# Usage:
+#
+# runsudokupad
+#
+# This is a mixed shell script, and Python 3 simple sebserver, in one file.
+# It starts out as a shell script, then launches Python for the webserver.
+# It requires bash, for the input redirection features.
+#
+# It expects "local-sudokupad" to link to a working directory containing
+# a cached copy of SudokuPad (with whatever fixes you need to test), or
+# LOCAL_SUDOKUPAD to be set to point at that directory.  That directory is
+# served up via the webserver.
+#
+# There are *all sorts* of random SudokuPad URL formats, including ones
+# literally shoved onto the end of the URL.  So we cannot just
+# use the basic http.server.  Instead we handle a 404 by serving up 
+# the index page, and hoping for the best.
+#
+# 404 handling borrowed from:
+# https://github.com/clokep/SimpleHTTP404Server/blob/master/SimpleHTTP404Server.py
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-07
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+#---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+
+LOCAL_SUDOKUPAD="${LOCAL_SUDOKUPAD:-${BIN_DIR}/../local-sudokupad}"
+PUZZLE_DIR="${PUZZLE_DIR:-${BIN_DIR}/../puzzles}"
+WEB_PORT="9876"
+PAGE_404="index.html"
+SCREENNAME="sudokupad"
+
+export PUZZLE_DIR
+export WEB_PORT
+export PAGE_404
+
+if [ -n "${STY}" ]; then
+  # We are in the screen session, so we should fall through to starting the
+  # webserver.
+  # echo "We are the screen session \o/"            # Debugging
+  : 
+elif screen -ls | grep -q "${SCREENNAME}"; then
+  # Is the screen session running already?
+  echo "SudokuPad webserver is runnning on localhost:${WEB_PORT}"
+  exit 0
+elif [ -z "${STY}" ]; then
+  # There is no screen session running for sudokupad, so we should start one
+  # (we have to do this, as "screen python3 <(cat <<EOF .... EOF)" does not
+  # work as the input file handle has gone away before Python runs :-/
+  #
+  # echo "Starting ourselves again in a screen session" >&2   # DEBUG
+  # echo screen -d -m -S "${SCREENNAME}" "$0" "$@"            # DEBUG
+  #
+  echo "Starting SudokuPad webserver on localhost:${WEB_PORT}"
+  exec screen -d -m -S "${SCREENNAME}" "$0" "$@"
+fi
+
+#echo "Now starting the webserver..." >&2                     # DEBUG
+
+# Start the SudokuPad webserver
+cd "${LOCAL_SUDOKUPAD}" &&
+   python3 <(cat <<EOF
+import os
+import http.server
+import socketserver
+import socket
+import urllib.request
+
+PORT = int(os.environ.get('WEB_PORT', 8000))
+PAGE_404 = os.environ.get('PAGE_404', '404.html')
+UPSTREAM = os.environ.get('SUDOKUPAD', 'https://sudokupad.app')
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        # print("Translating: {0}".format(self.path))         # DEBUG
+        path = self.translate_path(self.path)
+
+        # If the path doesn't exist, fake it to be the 404 page,
+	# unless it is /api/puzzle/PUZZLEID, where we proxy the request
+        # to the upstream SudokuPad puzzle server to get the puzzle
+	# definition
+	#
+        if not os.path.exists(path):
+            if self.path.startswith('/api/puzzle/'):
+                return self.get_api_puzzle()
+
+            self.path = PAGE_404
+
+        # print("Serving: {0}".format(self.path))
+
+        # Call the superclass methods to actually serve the page.
+        try:
+            super().do_GET()
+        except BrokenPipeError:
+            pass
+
+    def get_api_puzzle(self):
+        print("Fetching from {0}{1}".format(UPSTREAM, self.path))  # DEBUG
+        try:
+            with urllib.request.urlopen(UPSTREAM + self.path) as f:
+                body = f.read()
+
+                del f.headers['transfer-encoding'] # Avoid chunked transfer encoding
+                f.headers['Content-Length'] = str(len(body))
+                headers = f.headers.as_bytes()
+
+                # DEBUG: print the result to be returned
+                # print("Returning:\nHTTP/1.1 {0} {1}\n{2}{3}".format(
+                #     f.status, f.reason, headers.decode('utf8'), body.decode('utf8')))
+
+                # Write out the headers and result
+                self.wfile.write('HTTP/1.1 {0} {1}\n'.format(f.status, f.reason).encode('utf8'))
+                self.wfile.write(headers)
+                self.wfile.write(body)
+        except urllib.error.HTTPError:
+            print("Could not retrieve: {0}".format(self.path))
+            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+
+class SaneTCPServer(socketserver.TCPServer):
+    def __init__(self, *args, **kwargs):
+        self.allow_reuse_address = True
+        super().__init__(*args, **kwargs)
+
+with SaneTCPServer(("", PORT), Handler) as httpd:
+    print("Webserver running at http://127.0.0.1:{0}/".format(PORT))
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+EOF
+)
+
+exit 0
