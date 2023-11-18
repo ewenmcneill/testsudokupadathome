@@ -19,12 +19,16 @@ Periodically it is necessary to test SudokuPad "at home" in order to
 make local fixes, or work around bugs in SudokuPad until they are fixed
 upstream.
 
-This repository provides some "developer level" tools for caching a
-local copy of SudokuPad, with local patches automatically applied, and
-then serve them up with a local webserver.  It was written to work on
-an Ubuntu Linux system, particularly to help locally work around a long
-standing bug in SudokuPad with handling the control modifier key in
-Firefox on Linux.
+This repository provides some "developer level" tools for caching a local
+copy of SudokuPad, with local patches automatically applied, and then
+serve them up with a local webserver.  It was written to work on an Ubuntu
+Linux system, particularly to help locally work around [a long standing
+bug in SudokuPad with handling the control modifier key in Firefox on
+Linux](https://discord.com/channels/709370620642852885/789547910844514376/1159998193174589492);
+the first patch in the `patches` directory is a
+couple of keyboard handling fixes (first [posted as a
+gist](https://gist.github.com/ewenmcneill/b8284e0341053f1be0e4b6643dc10ee2),
+2023-10-07).
 
 The code in this repository is MIT licensed (see [LICENSE](LICENSE));
 SudokuPad remains copyright Sven Neumann.  If you like
@@ -67,7 +71,9 @@ will assume it is already in a `screen` session and not start a new one;
 that is the `screen` marker for a screen tty.)
 
 Then to play puzzles with the local version, use `bin/playsudokupad` to
-convert the puzzle link into one that references the local webserver, eg
+convert the puzzle link into one that references the local webserver,
+and put that into the cut'n'paste buffer, ready to past into a browser
+tab.  For instance (some GAS puzzle links):
 
     bin/playsudokupad https://tinyurl.com/vc7xu34w
     bin/playsudokupad https://sudokupad.app/sudoku/BLLGjtrb4P
@@ -83,6 +89,15 @@ rewrite the link to point at `localhost:9876`.  If the SudokuPad puzzle
 shortcode system is used, then the webserver in `bin/runsudokupad` will
 fetch the full puzzle from the online SudokuPad server, and cache it
 in `puzzles/sudokupad/SHORTCODE` when your webbrowser loads the puzzle.
+
+You might also be able to use
+[GreaseMonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/),
+[TamperMonkey](https://www.tampermonkey.net/), or
+[ViolentMonkey](https://violentmonkey.github.io/) to intercept the browser
+loading the main SudokuPad URLs and redirect them to your local version.
+For now I have kept using `playsudoku` to do the URL rewrites, despite
+the manual steps, because it keeps open the option of doing side by side
+testing with the online SudokuPad versions.
 
 Since the SudokuPad configuration is stored in a cookie under the domain
 you are using, the first time you use the local cachec copy, all your
