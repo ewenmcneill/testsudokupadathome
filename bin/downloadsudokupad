@@ -3,6 +3,9 @@
 #
 # Usage: downloadsudokupad DOMAIN SUFFIX
 #
+# The patches in patches/ will be automatically applied after download unless
+# NO_PATCH is set in the environment.
+#
 # NOTE: this is a hack, and makes *lots* of assumptions based on observed
 # behaviour.  The list of images needed was hand determined and hard
 # coded, based on observing browser download behaviour (several of them
@@ -20,6 +23,7 @@ case "${BIN_DIR}" in
   *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
 esac
 DEST_BASE_DIR="${DEST_BASE_DIR:-${BIN_DIR}/..}"
+APPLYPATCHES="${BIN_DIR}/applypatches"
 
 DOMAIN="${1}"
 SUFFIX="${2:-sudoku/index.html}"
@@ -93,3 +97,7 @@ FINALDIR=$(realpath "${DEST_BASE_DIR}/${DOMAIN}-${VERSION}")
 mv "${OUTDIR}" "${FINALDIR}"
 
 echo "SudokuPad version ${VERSION} cached in ${FINALDIR}"
+
+if [ -z "${NO_PATCH}" ]; then
+  "${APPLYPATCHES}" "${FINALDIR}"
+fi
