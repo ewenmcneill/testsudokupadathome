@@ -1,0 +1,47 @@
+#! /bin/sh
+# Apply the local patches to a cached copy of SudokuPad
+#
+# Usage:
+#
+# applypatches CACHE_DIRECTORY [PATCH_ARGS]
+#
+# Test if patches apply with:
+#
+# applypatches CACHE_DIRECTORY --dry-run
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+#---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+
+PATCH_DIR="${PATCH_DIR:-${BIN_DIR}/../patches}"
+DEST_DIR="$1"
+
+if [ -z "${DEST_DIR}" ]; then
+  echo "Usage: $0 CACHE_DIRECTORY" >&2
+  exit 1
+fi
+
+# Skip past destination directory argument
+shift
+
+# Obtain full patches to the patches to apply
+PATCHES=$( ( cd "${PATCH_DIR}" && ls "$(pwd)"/*.patch) )
+
+#echo "Found patches:"; echo "${PATCHES}"     # DEBUG
+
+# Apply the patches in order
+(
+  cd "${DEST_DIR}" &&
+  for PATCH in ${PATCHES}; do
+    echo "Applying ${PATCH}"
+    patch -p1 "$@" <"${PATCH}"
+  done
+)
