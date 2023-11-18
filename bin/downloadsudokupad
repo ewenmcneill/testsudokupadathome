@@ -65,10 +65,23 @@ for JS in ${JAVASCRIPTS}; do
 done
 
 #---------------------------------------------------------------------------
-# TODO: download required images
+# Download required image files as well
+#
 # https://app.crackingthecryptic.com/images/svencodes_peek.png
 # https://app.crackingthecryptic.com/images/sudokupad_square_logo.png
 # https://app.crackingthecryptic.com/images/icon_copy.svg
+#
+IMAGES=$(cat <<EOF
+images/svencodes_peek.png
+images/sudokupad_square_logo.png
+images/icon_copy.svg
+EOF
+)
+
+mkdir -p "${OUTDIR}/images"
+for IMG in ${IMAGES}; do
+  wget -O "${OUTDIR}/${IMG}" "https://${DOMAIN}/${IMG}"
+done
 
 #---------------------------------------------------------------------------
 # Figure out the version, so we can rename the directory to reflect the
