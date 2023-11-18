@@ -1,0 +1,37 @@
+Patch for SudokuPad script.js that fixes:
+
+1.  The handling of the control key modifier tracking so that it does not
+    immediately clear the control key down state right after it has set it;
+
+2.  Updating the current status of the modifier key tracking before processing
+    digit keys, so they are not processed with stale out of sync state
+
+Patch written by Ewen McNeill <ewen@naos.co.nz>, for SudokuPad 0.397
+
+diff -ur app.crackingthecryptic.com-0.397.0-firefox/script.js app.crackingthecryptic.com-0.397.0-working/script.js
+--- app.crackingthecryptic.com-0.397.0-firefox/script.js	2023-10-07 12:24:06.735880724 +1300
++++ app.crackingthecryptic.com-0.397.0-working/script.js	2023-10-07 12:23:41.319802792 +1300
+@@ -4696,10 +4696,10 @@
+ 	// Key handlers
+ 		P.updateKeys = function(event) {
+ 			//console.info('App.updateKeys:', event.type, event.code, event.shiftKey, event.ctrlKey, event.metaKey);
+-			this.keys[event.code] = (event.type === 'keydown');
+ 			if(!event.shiftKey) this.keys.Shift = this.keys.ShiftLeft = this.keys.ShiftRight = false;
+ 			if(!event.ctrlKey) this.keys.Control = this.keys.ControlLeft = this.keys.ControlRight = false;
+ 			if(!event.metaKey) this.keys.Meta = this.keys.MetaLeft = this.keys.MetaRight = false;
++			this.keys[event.code] = (event.type === 'keydown');
+ 			const shiftDown = this.keys.Shift || this.keys.ShiftLeft || this.keys.ShiftRight || false;
+ 			const controlDown = this.keys.Control || this.keys.ControlLeft || this.keys.ControlRight || false;
+ 			const metaDown = this.keys.Meta || this.keys.MetaLeft || this.keys.MetaRight || false;
+@@ -4762,6 +4762,11 @@
+ 				let digit = event.code.replace(App.reDigit, '$1');
+ 				let btn = document.querySelector(`button[data-key="${digit}"]`);
+ 				digit = btn.dataset.value;
++				if (toolTempKey) {                        // Resync tool state
++					this.changeTool(toolTempKey.name, true);
++				} else {
++					this.changeTool();
++				}
+ 				this.doPressDigit(digit);
+ 				if(controlPressed || shiftPressed) event.preventDefault();
+ 			}
