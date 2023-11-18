@@ -59,6 +59,18 @@ export PUZZLE_DIR
 export WEB_PORT
 export PAGE_404
 
+# Ensure the directories exist for caching puzzle definitions, and serving
+# up the cached puzzle definitions
+#
+mkdir -p "${PUZZLE_DIR}/sudokupad"
+mkdir -p "${LOCAL_SUDOKUPAD}/api"
+
+API_DIR=$(realpath "${LOCAL_SUDOKUPAD}/api")
+RELATIVE_PUZZLE_DIR=$(realpath --relative-to="${API_DIR}" "${PUZZLE_DIR}")
+
+(cd "${LOCAL_SUDOKUPAD}/api" &&
+    (test -e puzzle || ln -s "${RELATIVE_PUZZLE_DIR}/sudokupad" puzzle))
+
 if [ -n "${STY}" ]; then
   # We are in the screen session, so we should fall through to starting the
   # webserver.
