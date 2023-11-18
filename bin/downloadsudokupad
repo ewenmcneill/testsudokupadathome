@@ -1,0 +1,82 @@
+#! /bin/sh
+# Download the SudokuPad source (so we can investigate it)
+#
+# Usage: downloadsudokupad DOMAIN SUFFIX
+#
+# NOTE: this is a hack, and makes *lots* of assumptions based on observed
+# behaviour.  The list of images needed was hand determined and hard
+# coded, based on observing browser download behaviour (several of them
+# are only referenced via the JavaScript code, on certain events)
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-05
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+#---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+DEST_BASE_DIR="${DEST_BASE_DIR:-${BIN_DIR}/..}"
+
+DOMAIN="${1}"
+SUFFIX="${2:-sudoku/index.html}"
+
+if [ -z "${DOMAIN}" ]; then
+  echo "Usage: $0 DOMAIN [SUFFIX]" >&2
+  exit 1
+fi
+
+OUTDIR=$(mktemp -d "${TMPDIR:-/tmp}/sudokupad-XXXXX")
+echo "Downloading into ${OUTDIR}"
+
+#---------------------------------------------------------------------------
+# Top level page
+#
+INDEX="${OUTDIR}/index.html"
+
+wget -O "${INDEX}" "https://${DOMAIN}/${SUFFIX}"
+
+#---------------------------------------------------------------------------
+# CSS and related resources
+#
+RESOURCES=$(awk '/link rel="[^"]*" href/ {print $3;}' "${INDEX}" | cut -f 2 -d '"' | cut -f 1 -d '?')
+
+for RESOURCE in $RESOURCES; do
+  wget -O "${OUTDIR}/${RESOURCE}" "https://${DOMAIN}/${RESOURCE}"
+done
+
+#---------------------------------------------------------------------------
+# JavaScript
+#
+# These may be:
+#
+# <script src="....">
+# <script defer src="....">
+#
+JAVASCRIPTS=$(grep "script[ a-z]*src=" "${INDEX}" |
+              grep -v "https" | 
+              cut -f 2 -d '"' | cut -f 1 -d '?')
+
+for JS in ${JAVASCRIPTS}; do
+  wget -O "${OUTDIR}/${JS}" "https://${DOMAIN}/${JS}"
+done
+
+#---------------------------------------------------------------------------
+# TODO: download required images
+# https://app.crackingthecryptic.com/images/svencodes_peek.png
+# https://app.crackingthecryptic.com/images/sudokupad_square_logo.png
+# https://app.crackingthecryptic.com/images/icon_copy.svg
+
+#---------------------------------------------------------------------------
+# Figure out the version, so we can rename the directory to reflect the
+# domain and version
+#
+VERSION=$(grep "fpuzzlesdecoder" "${INDEX}" | cut -f 2 -d '"' | cut -f 2 -d =)
+FINALDIR=$(realpath "${DEST_BASE_DIR}/${DOMAIN}-${VERSION}")
+
+mv "${OUTDIR}" "${FINALDIR}"
+
+echo "SudokuPad version ${VERSION} cached in ${FINALDIR}"
