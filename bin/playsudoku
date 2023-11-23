@@ -9,6 +9,7 @@
 #
 # https://sudokupad.app/588su8gaub
 # https://sudokupad.app/SETTER/TITLE
+# https://app.crackingthecryptic.com/iix40twg6n
 #
 # which appear to work by fetching a regular page/JS, and *then* looking
 # up the shortlink at, eg
@@ -27,7 +28,7 @@
 # FIXED_SUDOKUPAD to a base URL for the local SudokuPad local webserver
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-09
-# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-24
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -88,7 +89,7 @@ case "${URL}" in
 
   # Just translate the domain name in these URLs
   *sudokupad.app*) ;;
-  *app.ctrackingthecryptic.com*) ;;
+  *app.crackingthecryptic.com*) ;;
 
   *)         echo "Usage: $0 SHORTURL"; exit 1; ;;
 esac
