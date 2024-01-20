@@ -28,7 +28,7 @@
 # FIXED_SUDOKUPAD to a base URL for the local SudokuPad local webserver
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-09
-# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-24
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-12-02
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -81,9 +81,12 @@ case "${URL}" in
           # echo "Using cached value for ${SITENAME}/${SHORTCODE}" # DEBUG
           URL=$(cat "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}")
       else
-          # echo "Saveing value for ${SITENAME}/${SHORTCODE}"      # DEBUG
-          URL=$(curl -si "${URL}" | grep '^location: ' | sed 's/^location: //;')
-          echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+          # echo "Saving value for ${SITENAME}/${SHORTCODE}"      # DEBUG
+          URL=$(curl -si "${URL}" | grep '^[Ll]ocation: ' |
+		                    sed  's/^[Ll]ocation: //;')
+	  if [ -n "${URL}" ]; then
+              echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+          fi
       fi
       ;;
 
