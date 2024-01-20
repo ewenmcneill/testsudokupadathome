@@ -1,0 +1,210 @@
+#! /usr/bin/env python3
+# Decode Sudoku Puzzle Data
+#
+# Formats supported are those that are supported by SudokuPad, but so far only:
+#
+# scf     -- legacy format, that supports 9x9 Classic / Windoku / X-Sudoku
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-01-20
+#---------------------------------------------------------------------------
+
+import sys
+from base64       import b64decode
+from urllib.parse import unquote
+
+#---------------------------------------------------------------------------
+# Utility functions
+
+# Remove website prefix if given a full URL instead of a puzzle ID
+def strip_website(input):
+    if input.startswith('http'):
+        return '/'.join( (input.split('/'))[3:] )
+    else:
+        return input
+
+# Decode URI components ready for unpacking
+def decodeuricomponent(input):
+    return unquote(input)
+
+# Decode Base64 data
+def decodebase64(input):
+    return b64decode(input)
+
+#---------------------------------------------------------------------------
+# Decode the SCF Givens
+#
+# The data encodes the givens as an encoded set of characters: 0-9 A-Z a-z.
+# (In theory it could also include {, |, }, ~, with zero repeats above 5,
+# but that is unlikely and might be suppressed in the encoder.)
+#
+# Each character encodes: (10 * repeat_zero_suffix) + given_digit_value,
+# into a 0-9 (base digits, no zero repeats), and A-Z a-z (10-35, 36-61)
+#
+# Reverse engineered from SudokuPad decoder:
+#
+# PT.dedoku = p=>p.replace(/./g,d=>(d=d.charCodeAt()-(d>'Z'?61:d>'9'?55:48),d%10+'0'.repeat(d/10)));
+#
+def decode_scf_givens(input):
+    output = ''
+
+    for ch in input:
+        raw_num = ord(ch)
+        if (ch > 'Z'):
+            num = raw_num - 61    # == (96-9-26), ie 'a' - 9 - 26
+        elif (ch > '9'):
+            num = raw_num - 55    # == (64-9), ie 'A' - 9
+        else:
+            num = raw_num - 48    # '0' in ASCII
+
+        # Encoded character
+        output += chr(ord('0') + (num%10))
+
+        # Run of zeros, if any
+        if num > 9:
+           output += '0' * (num // 10)
+
+    return output
+
+# Decode the SCF Metadata:
+#
+# Known constraints:
+#
+# 'w': Windoku, with Windows in fixed positions, at the intersections of
+#      rows 2-4, 6-8 / columns 2-4, 6-8
+#
+# 'x': X-Sudoku: both positive and negative diagonal have all digits 1-9
+#
+# In addition, additional metadata can be encoded with:
+#
+# 'aAUTHOR*: Author information, ending with a "*"
+#
+# 'tTITLE*:  Title information, ending with a "*"
+#
+# If a "*" needs to be included in the Author or Title it can be escaped
+# by doubling up the '*' (ie, '**' does not end that section, but instead
+# produces a literal '*' output).
+#
+SCF_CONSTRAINTS = {
+    'w': 'Windoku',
+    'x': 'X-Sudoku',
+}
+
+SCF_METADATA    = {
+    'a': 'Author',
+    't': 'Title',
+}
+
+def decode_scf_metadata(metadata_encoded):
+    metadata = {}
+
+    encoded_length = len(metadata_encoded)
+
+    idx = 0
+    while (idx < encoded_length):
+        ch = metadata_encoded[idx]
+        idx += 1
+        print("Parsing:", ch)
+
+        if (ch in SCF_CONSTRAINTS):
+            metadata.setdefault('constraints', set()).add(SCF_CONSTRAINTS[ch])
+
+        elif (ch in SCF_METADATA):
+            # Find the next *single* '*' as the end of the string (or the
+            # end of the string)
+            #
+            endidx = idx
+            while (endidx < encoded_length):
+                # Skip past doubled '**' if present
+                if ((endidx + 2 < encoded_length)       and
+                    (metadata_encoded[endidx]   == '*') and
+                    (metadata_encoded[endidx+1] == '*')):
+
+                    endidx += 2
+                    continue
+
+                # Stop on a single '*' (we know it it is not double as we
+                # checked that above)
+                #
+                if (metadata_encoded[endidx] == '*'):
+                    break
+
+                # Otherwise check from the next character
+                endidx += 1
+
+            # At this point, idx points at the start of the value, and
+            # endidx points at the character after the "*" that ends the 
+            # value (or the end of the string).  The value might have
+            # embedded double '**'s that escape a single star.
+            #
+            value = metadata_encoded[idx:endidx].replace('**', '*')
+
+            metadata.setdefault('metadata', {})[SCF_METADATA[ch]] = value
+
+            # Advance index past the value and terminator, to look for more
+            # metadata options.
+            #
+            idx = endidx + 1
+
+    return metadata
+
+#---------------------------------------------------------------------------
+
+# scf puzzle format:
+#
+# Only really supports Classic Sudoku, Windoku, and X-Sudoku; these extra
+# constraints are indicated via magic letters.  Puzzles are assumed to be
+# standard 9x9, in classic 3 boxes x 3 boxes layout.
+#
+# Optional "scf" prefix on the data.  Then the data encodes the givens
+# as an encoded set of characters: 0-9 A-Z a-z.  (In theory it could also
+# include {, |, }, ~, with zero repeats above 5, but that is unlikely and
+# might be suppressed in the encoder.)
+#
+# Each character encodes: (10 * repeat_zero_suffix) + given_digit_value,
+# into a 0-9 (base digits, no zero repeats), and A-Z a-z (10-35, 36-61)
+#
+# If there are any special features in the puzzle, then '*' is present
+# in the URL, and marks the separation between the puzzle given data, and
+# the constraint data.
+#
+# Known constraints:
+#
+# 'w': Windoku, with Windows in fixed positions, at the intersections of
+#      rows 2-4, 6-8 / columns 2-4, 6-8
+#
+# 'x': X-Sudoku: both positive and negative diagonal have all digits 1-9
+#
+# In addition, additional metadata can be encoded with:
+#
+# 'aAUTHOR*: Author information, ending marked with a "*"
+#
+# 'tTITLE*:  Title information, ending marked with a "*"
+#
+# If a "*" needs to be included in the Author or Title it can be escaped
+# by doubling up the '*' (ie, '**' does not end that section, but instead
+# produces a literal '*' output).
+#
+def decode_scf(puzzle_input):
+    if puzzle_input.startswith('scf'):
+        puzzle_data = decodeuricomponent(puzzle_input[3:])
+    else:
+        puzzle_data = decodeuricomponent(puzzle_input)
+
+    if '*' in puzzle_data:
+        givens_encoded, metadata_encoded = puzzle_data.split('*', 1)
+    else:
+        givens_encoded, metadata_encoded = puzzle_data, ''
+
+    givens   = decode_scf_givens(givens_encoded)
+    metadata = decode_scf_metadata(metadata_encoded)
+
+    return (givens, metadata)
+
+#---------------------------------------------------------------------------
+# Placeholder main function
+
+def main():
+    print(decode_scf(strip_website(sys.argv[1])))
+
+if __name__ == '__main__':
+    main()
