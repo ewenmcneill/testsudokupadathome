@@ -12,7 +12,7 @@
 # are only referenced via the JavaScript code, on certain events)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-10-05
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2023-11-18
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-04-15
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -109,6 +109,21 @@ EOF
 mkdir -p "${OUTDIR}/images"
 for IMG in ${IMAGES}; do
   wget -O "${OUTDIR}/${IMG}" "https://${DOMAIN}/${IMG}"
+done
+
+#---------------------------------------------------------------------------
+# Download some additional assets
+#
+# https://app.crackingthecryptic.com/assets/autoshortid.html
+#
+ASSETS=$(cat <<EOF
+assets/autoshortid.html
+EOF
+)
+
+mkdir -p "${OUTDIR}/assets"
+for ASSET in ${ASSETS}; do
+  wget -O "${OUTDIR}/${ASSET}" "https://${DOMAIN}/${ASSET}"
 done
 
 #---------------------------------------------------------------------------
