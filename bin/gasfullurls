@@ -1,0 +1,41 @@
+#! /bin/sh
+# Attempt to extract the full URLs for the puzzles from GAS Leak PDFs
+#
+# Usage: gasfullurls FILENAME MONTH YEAR YYYY_MM
+#    eg, gasfullurls gas.pdf  June  2024 2024-06
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
+#---------------------------------------------------------------------------
+
+FILE="$1"
+MONTH="$2"
+YEAR="$3"
+YYYY_MM="$4"
+
+if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" -o -z "${YYYY_MM}" ]; then
+  echo "Usage: gasfullurls FILENAME MONTH YEAR YYYY_MM" >&2
+  echo "   eg, gasfullurls gas.pdf  June  2024 2024-06" >&2
+  exit 1
+fi
+
+pdftotext "${FILE}" -                                        |
+     grep -E "^.*${YEAR}|^Bonus|sudokupad.app"           | 
+     sed 's/^.*SudokuPad: //i;'                              |
+     tr '\014' '\012'                                        |
+     sed "s/^${MONTH} \([0-9][0-9]*\), ${YEAR}/${YYYY_MM}-\1/;
+          s/${YYYY_MM}-\([0-9]\):/${YYYY_MM}-0\1:/;
+          s/Bonus/GAS Bonus/; s/^${YEAR}/GAS ${YEAR}/;"      |
+     (
+     echo "day_title|puzzle_title|short_url";
+     perl -lne 'if (/^GAS/)     { $title = $_; }
+                if (/sudokupad/) { 
+                  if (/^(.+): (.+)$/) {
+                    print join("|", $title, $1, $2);
+                  } elsif ($title =~ /: (.+)$/) {
+                    print join("|", $title, $1, $_);
+                  } else {
+                    print join("|", $title, "", $_);
+                  }
+                }'
+     ) # | column -s'|' -t
+
