@@ -43,19 +43,20 @@ if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" -o -z "${YYYY_MM}" ]; then
   exit 1
 fi
 
-pdftotext "${FILE}" -                                        |
-     grep -E "^.*${YEAR}|^Bonus|sudokupad.app"           |
-     sed 's/^.*SudokuPad: //i;'                              |
-     tr '\014' '\012'                                        |
+pdftotext "${FILE}" -                                          |
+     grep -E "^.*${YEAR}|^Bonus|sudokupad.app|tinyurl.com|app.crackingthecryptic.com" |
+     sed 's/^.*SudokuPad: //i; s/^CTC: //i; s/^Penpa: //i;'    |
+     tr '\014' '\012'                                          |
      sed "s/^${MONTH} \([0-9][0-9]*\), ${YEAR}/${YYYY_MM}-\1/;
           s/${YYYY_MM}-\([0-9]\):/${YYYY_MM}-0\1:/;
           s/Bonus/GAS ${MONTH} ${YEAR} Bonus/;
-	  s/^${YEAR}/GAS ${YEAR}/;"                          |
+          s/^${YEAR}/GAS ${YEAR}/;"                            |
      (
      echo "day_title|puzzle_title|short_url";
-     perl -lne 'if (/^GAS/)     { $title = $_; }
-                if (/sudokupad/) { 
-                  if (/^(.+): (.+)$/) {
+     perl -lne 'if (/^GAS/) { $title = $_; }
+                if ((m|https?://.*sudokupad|) or (m|https?://.*tinyurl.com|) or
+                     m|https://.*app.crackingthecryptic.com|) {
+                  if (/^(.+): (.+)$/ && $1 !~ /CTC/ && $1 !~ /Sudokupad/) {
                     print join("|", $title, $1, $2);
                   } elsif ($title =~ /: (.+)$/) {
                     print join("|", $title, $1, $_);
@@ -70,7 +71,7 @@ pdftotext "${FILE}" -                                        |
          print $_, "|full_url";
        } elsif ($F[2] =~ /^http/) {
          $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
-	 chomp $full_url;
+         chomp $full_url;
          print $_, "|${full_url}";
        } else {
          print $_, "|";
