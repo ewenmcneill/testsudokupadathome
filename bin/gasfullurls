@@ -2,10 +2,35 @@
 # Attempt to extract the full URLs for the puzzles from GAS Leak PDFs
 #
 # Usage: gasfullurls FILENAME MONTH YEAR YYYY_MM
+#    eg, gasfullurls gas.pdf  June  2024 2024-06 >gas.tsv
 #    eg, gasfullurls gas.pdf  June  2024 2024-06
 #
+# Outputs a tab separated file (TSV) with:
+#
+# - day title
+# - puzzle title
+# - short URL
+# - full URL (where possible)
+#
+# if output is redirected, or separated columns for viewing in less
+# (if run interactively)
+#
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-27
 #---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+GETFULLSUDOKUURL="${BIN_DIR}/getfullsudokuurl"
+export GETFULLSUDOKUURL
+
+#---------------------------------------------------------------------------
+# Command line parsing
 
 FILE="$1"
 MONTH="$2"
@@ -19,12 +44,13 @@ if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" -o -z "${YYYY_MM}" ]; then
 fi
 
 pdftotext "${FILE}" -                                        |
-     grep -E "^.*${YEAR}|^Bonus|sudokupad.app"           | 
+     grep -E "^.*${YEAR}|^Bonus|sudokupad.app"           |
      sed 's/^.*SudokuPad: //i;'                              |
      tr '\014' '\012'                                        |
      sed "s/^${MONTH} \([0-9][0-9]*\), ${YEAR}/${YYYY_MM}-\1/;
           s/${YYYY_MM}-\([0-9]\):/${YYYY_MM}-0\1:/;
-          s/Bonus/GAS Bonus/; s/^${YEAR}/GAS ${YEAR}/;"      |
+          s/Bonus/GAS ${MONTH} ${YEAR} Bonus/;
+	  s/^${YEAR}/GAS ${YEAR}/;"                          |
      (
      echo "day_title|puzzle_title|short_url";
      perl -lne 'if (/^GAS/)     { $title = $_; }
@@ -37,5 +63,19 @@ pdftotext "${FILE}" -                                        |
                     print join("|", $title, "", $_);
                   }
                 }'
-     ) # | column -s'|' -t
-
+     ) |
+     # Expand the short URLs to full URLs
+     perl -F'\|' -alne '
+       if ($F[2] eq "short_url") {
+         print $_, "|full_url";
+       } else {
+         $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
+	 chomp $full_url;
+         print $_, "|${full_url}";
+       }' |
+     if [ -t 1 ]; then
+       column -s'|' -t | less -S
+     else
+       # Convert to tab separated values for saving to a file
+       tr '|' '\011'
+     fi
