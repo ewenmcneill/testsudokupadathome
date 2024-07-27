@@ -1,0 +1,170 @@
+#! /bin/sh
+# Expand out Sudoku TinyURL / SudokuPad links, and print out the URL
+#
+# TinyURL is just a redirector to (hopefully) the full puzzle link. 
+# We cache the results of these tinyurl links, for faster reopening
+# the puzzles, and to avoid TinyURL being a single point of failure
+# for replaying puzzles.
+#
+# There's also a SudokuPad shorturl service, which users URLs like:
+#
+# https://sudokupad.app/588su8gaub
+# https://sudokupad.app/SETTER/TITLE
+# https://app.crackingthecryptic.com/iix40twg6n
+#
+# which appear to work by fetching a regular page/JS, and *then* looking
+# up the shortlink at, eg
+#
+# https://sudokupad.app/api/puzzle/588su8gaub
+# https://sudokupad.app/api/puzzle/SETTER/TITLE
+#
+# and that API returns text string that is the puzzle definition (eg, that
+# might otherwise have been part of the URL).  These can (currently) be
+# expanded baack into full URLs by retrieving the data from the SudokuPad
+# API and (partially) URL decoding it, then replacing the shortcode in the
+# URL with that full puzzle data.
+#
+# To override defaults, set:
+#
+# PUZZLE_DIR to a directory under which to save puzzle defintions
+# SUDOKUPAD_SERVER to the base URL for the upstream SudokuPad server whose
+# API should be used to retrieve puzzle data
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-25
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-27
+#---------------------------------------------------------------------------
+#
+# SPDX-License-Identifier: MIT
+#
+# Copyright 2023 Ewen McNeill
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the “Software”), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+# NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+# THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#---------------------------------------------------------------------------
+
+# Brute force URL Decode, required for SudokuPad shortened links when turning
+# them back into full links.  We do *not* decode the "+" (spaces), but we do
+# decode the "%NN" digits.
+urldecode() {
+  #perl -pne 'y/+/ /;s/%([\da-f]{2})/pack H2,$1/gie'    
+  perl -pne 's/%([\da-f]{2})/pack H2,$1/gie'    
+}
+SUDOKUPAD_SERVER="${SUDOKUPAD_SERVER:-https://sudokupad.app}"
+
+PUZZLE_DIR="${PUZZLE_DIR:-/src/sudoku/sudokupadathome/puzzles}"
+
+#---------------------------------------------------------------------------
+# Command line parsing
+
+URL="$1"
+
+if [ -z "${URL}" ]; then
+  echo "Usage: $0 TINYURL"            >&2
+  echo "   or: $0 SUDOKUPAD_SHORTURL" >&2
+  exit 1
+fi
+
+case "${URL}" in
+  # Get redirect from tinyurl to the full puzzle link, and cache the result
+  # (use the cached value if we already have it)
+  #
+  *tinyurl*)
+      SITENAME="tinyurl.com"
+      SHORTCODE="$(echo ${URL} | sed 's/^.*tinyurl.com\///;')"
+
+      mkdir -p "${PUZZLE_DIR}/${SITENAME}"
+
+      if [ -r "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}" ]; then
+          #echo "Using cached value for ${SITENAME}/${SHORTCODE}" # DEBUG
+          #echo "from '${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}'"   # DEBUG
+
+          URL=$(cat "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}")
+      else
+          #echo "Saving value for ${SITENAME}/${SHORTCODE}"       # DEBUG
+          URL=$(curl -si "${URL}" | grep '^[Ll]ocation: ' |
+                                    sed  's/^[Ll]ocation: //;')
+          if [ -n "${URL}" ]; then
+              echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+          fi
+      fi
+      ;;
+
+  # Expand out the shortcodes of SudoukuPad, which are at hidden behind
+  # a web service that returns a URL encoded version of "what would have
+  # been in the URL before the forced shortcoding of puzzle URLs" :-/
+  #
+  # This might also be reached by non-shortcoded URLs, so we try to detect
+  # those and skip the expansion in that case.
+  #
+  *sudokupad.app*|*app.crackingthecryptic.com*)
+      SITENAME=sudokupad
+      BASEURL=$(echo "${URL}" | sed 's/\.app\/.*$/.app/; s/\.com\/.*$/.com/;')
+      SHORTCODE=$(echo "${URL}" |
+                  sed 's/https:\/\///;
+                       s/^.*sudokupad.app\///;
+                       s/^app.crackingthecryptic.com\///;')
+      # DEBUG
+      #echo "BASEURL=[${BASEURL}]"
+      #echo "SHORTCODE=[${SHORTCODE}]"
+
+      PUZZLEDATA=""
+      PUZZLEDATAFILE="${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+
+      case "${SHORTCODE}" in
+          fpuz*) ;;       # Not a shortcode
+          scl*)  ;;       # Not a shortcode
+          *)              # Probably a shortcode
+            if [ -r "${PUZZLEDATAFILE}" ]; then
+                #echo "Using cached value for ${SITENAME}/${SHORTCODE}" # DEBUG
+                #echo "from '${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}'"   # DEBUG
+
+                PUZZLEDATA=$(cat "${PUZZLEDATAFILE}")
+            else
+                echo "Retrieving value for ${SITENAME}/${SHORTCODE}"    # DEBUG
+                API_URL="${SUDOKUPAD_SERVER}/api/puzzle/${SHORTCODE}"
+                PUZZLEDATA=$(curl -s "${API_URL}")
+
+                #echo "Fetched: [${PUZZLEDATA}]"                        # DEBUG
+
+                # Save the puzzle data retrieved, to avoid future requests
+                if [ -n "${PUZZLEDATA}" ]; then
+                     echo "${PUZZLEDATA}" >"${PUZZLEDATAFILE}"
+                fi
+            fi
+            ;;
+      esac
+
+      # If we retrieved meaningful puzzle data, build a new URL
+      case "${PUZZLEDATA}" in
+          fpuz*) URL="${BASEURL}/$(echo ${PUZZLEDATA} | urldecode)"; ;;
+          scl*)  URL="${BASEURL}/$(echo ${PUZZLEDATA} | urldecode)"; ;;
+          *)     echo "Unrecognised puzzle data: ${PUZZLEDATA}" >&2
+      esac
+      ;;
+
+  # Anything else is just the base URL, as far as we know
+  *)  ;;
+esac
+
+# Output whatever URL that we have at this point
+#
+# Ideally it will be a replacement for the original URL, but it might just
+# be the original URL if that looks like it was a full puzzle URL
+#
+echo "${URL}"
