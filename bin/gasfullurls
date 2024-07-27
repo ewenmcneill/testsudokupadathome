@@ -68,10 +68,12 @@ pdftotext "${FILE}" -                                        |
      perl -F'\|' -alne '
        if ($F[2] eq "short_url") {
          print $_, "|full_url";
-       } else {
+       } elsif ($F[2] =~ /^http/) {
          $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
 	 chomp $full_url;
          print $_, "|${full_url}";
+       } else {
+         print $_, "|";
        }' |
      if [ -t 1 ]; then
        column -s'|' -t | less -S
