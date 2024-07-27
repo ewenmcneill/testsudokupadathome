@@ -136,7 +136,7 @@ case "${URL}" in
 
                 PUZZLEDATA=$(cat "${PUZZLEDATAFILE}")
             else
-                echo "Retrieving value for ${SITENAME}/${SHORTCODE}"    # DEBUG
+                #echo "Retrieving value for ${SITENAME}/${SHORTCODE}"   # DEBUG
                 API_URL="${SUDOKUPAD_SERVER}/api/puzzle/${SHORTCODE}"
                 PUZZLEDATA=$(curl -s "${API_URL}")
 
