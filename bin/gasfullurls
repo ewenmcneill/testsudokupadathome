@@ -16,7 +16,7 @@
 # (if run interactively)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-27
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-28
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -46,6 +46,9 @@ fi
 pdftotext "${FILE}" -                                          |
      grep -E "^.*${YEAR}|^Bonus|sudokupad.app|tinyurl.com|app.crackingthecryptic.com" |
      sed 's/^.*SudokuPad: //i; s/^CTC: //i; s/^Penpa: //i;'    |
+     sed 's/^Play on CTC App: //i;'                            |
+     sed 's/^Solve on CTC App: //i;'                           |
+     sed 's| *\[no f-puzzles link today\]||;'                  |
      tr '\014' '\012'                                          |
      sed "s/^${MONTH} \([0-9][0-9]*\), ${YEAR}/${YYYY_MM}-\1/;
           s/${YYYY_MM}-\([0-9]\):/${YYYY_MM}-0\1:/;
@@ -56,13 +59,22 @@ pdftotext "${FILE}" -                                          |
      perl -lne 'if (/^GAS/) { $title = $_; }
                 if ((m|https?://.*sudokupad|) or (m|https?://.*tinyurl.com|) or
                      m|https://.*app.crackingthecryptic.com|) {
-                  if (/^(.+): (.+)$/ && $1 !~ /CTC/ && $1 !~ /Sudokupad/) {
-                    print join("|", $title, $1, $2);
+                  if (/^(.+): (.+)$/ && $1 !~ /CTC/i && $1 !~ /Sudokupad/) {
+                    $puzzle_title = $1;
+                    $puzzle_url   = $2;
                   } elsif ($title =~ /: (.+)$/) {
-                    print join("|", $title, $1, $_);
+                    $puzzle_title = $1;
+                    $puzzle_url   = $_;
                   } else {
-                    print join("|", $title, "", $_);
+                    $puzzle_title = "";
+                    $puzzle_url   = $_;
                   }
+                  # TinyURLs do not have spaces, but there may be following
+                  # text that we want to omit
+                  if ($puzzle_url =~ /tinyurl.com/) {
+                    $puzzle_url =~ s/ .*$//;
+                  }
+                  print join("|", $title, $puzzle_title, $puzzle_url);
                 }'
      ) |
      # Expand the short URLs to full URLs
@@ -72,10 +84,9 @@ pdftotext "${FILE}" -                                          |
        } elsif ($F[2] =~ /^http/) {
          $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
          chomp $full_url;
-         print $_, "|${full_url}";
-       } else {
-         print $_, "|";
-       }' |
+         print join("|", @F, $full_url);
+       }'         |
+     tr -d '\015' |
      if [ -t 1 ]; then
        column -s'|' -t | less -S
      else
