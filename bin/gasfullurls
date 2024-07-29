@@ -16,7 +16,7 @@
 # (if run interactively)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-28
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-29
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -48,6 +48,7 @@ pdftotext "${FILE}" -                                          |
      sed 's/^.*SudokuPad: //i; s/^CTC: //i; s/^Penpa: //i;'    |
      sed 's/^Play on CTC App: //i;'                            |
      sed 's/^Solve on CTC App: //i;  s/^CTC App: //i;'         |
+     sed 's/^CtC - //i;'                                       |
      sed 's| *\[no f-puzzles link today\]||;'                  |
      tr '\014' '\012'                                          |
      sed "s/^${MONTH} \([0-9][0-9]*\)[.,] ${YEAR}/${YYYY_MM}-\1/;
