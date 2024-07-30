@@ -15,8 +15,10 @@
 # if output is redirected, or separated columns for viewing in less
 # (if run interactively)
 #
+# Requires GNU sed, for the \? extension.
+#
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-29
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-30
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -51,7 +53,7 @@ pdftotext "${FILE}" -                                          |
      sed 's/^CtC - //i;'                                       |
      sed 's| *\[no f-puzzles link today\]||;'                  |
      tr '\014' '\012'                                          |
-     sed "s/^${MONTH} \([0-9][0-9]*\)[.,] ${YEAR}/${YYYY_MM}-\1/;
+     sed "s/^${MONTH} \([0-9][0-9]*\)[.,]\? ${YEAR}/${YYYY_MM}-\1/;
           s/${YYYY_MM}-\([0-9]\):/${YYYY_MM}-0\1:/;
           s/Bonus/GAS ${MONTH} ${YEAR} Bonus/;
           s/^${YEAR}/GAS ${YEAR}/;"                            |
