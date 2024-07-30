@@ -30,6 +30,27 @@
 # SUDOKUPAD_SERVER to the base URL for the upstream SudokuPad server whose
 # API should be used to retrieve puzzle data
 #
+# In some cases the puzzle stored in the SudokuPad link shortener is
+# "unrefined" JSON (eg, JSON-like, but without quoted keys), which is
+# difficult to work with directly.  Typically these are "scl" style
+# puzzles, from the original Cracking the Cryptic setting/solving app,
+# which haven't been compressed before storing in the SudokuPad link
+# shortener.
+#
+# Usually the SudokuPad web application can be used via the browser
+# console to recover a more reasonable "URLable" version of the puzzle,
+# with, eg:
+#
+# await PuzzleLoader.fetchPuzzle('PUZZLE_SHORTCODE')
+#
+# and it should return something like:
+#
+# sclN4SwJgXA5AbAHAOQC4BEBMBF....
+#
+# which can then be placed onto the end of a URL.  (Because this
+# "puzzle format recovery" relies on extensive parts of the SudokuPad
+# JavaScript it is *not* automated, and will have to be done by hand.)
+#
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-25
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-30
 #---------------------------------------------------------------------------
