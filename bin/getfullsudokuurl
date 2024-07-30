@@ -31,7 +31,7 @@
 # API should be used to retrieve puzzle data
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-25
-# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-27
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-30
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -87,6 +87,27 @@ case "${URL}" in
   *tinyurl*)
       SITENAME="tinyurl.com"
       SHORTCODE="$(echo ${URL} | sed 's/^.*tinyurl.com\///;')"
+
+      mkdir -p "${PUZZLE_DIR}/${SITENAME}"
+
+      if [ -r "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}" ]; then
+          #echo "Using cached value for ${SITENAME}/${SHORTCODE}" # DEBUG
+          #echo "from '${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}'"   # DEBUG
+
+          URL=$(cat "${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}")
+      else
+          #echo "Saving value for ${SITENAME}/${SHORTCODE}"       # DEBUG
+          URL=$(curl -si "${URL}" | grep '^[Ll]ocation: ' |
+                                    sed  's/^[Ll]ocation: //;')
+          if [ -n "${URL}" ]; then
+              echo "${URL}" >"${PUZZLE_DIR}/${SITENAME}/${SHORTCODE}"
+          fi
+      fi
+      ;;
+
+  *bit.ly*)
+      SITENAME="bit.ly"
+      SHORTCODE="$(echo ${URL} | sed 's/^.*bit.ly\///;')"
 
       mkdir -p "${PUZZLE_DIR}/${SITENAME}"
 
