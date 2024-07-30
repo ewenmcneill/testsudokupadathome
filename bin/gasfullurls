@@ -48,7 +48,7 @@ fi
 pdftotext "${FILE}" -                                          |
      grep -E "^.*${YEAR}|^Bonus|sudokupad.app|tinyurl.com|app.crackingthecryptic.com" |
      sed 's/^.*SudokuPad: //i; s/^CTC: //i; s/^Penpa: //i;'    |
-     sed 's/^Play on CTC App: //i;'                            |
+     sed 's/^Play on CTC App: //i; s/Play on CTC: //i;'        |
      sed 's/^Solve on CTC App: //i;  s/^CTC App: //i;'         |
      sed 's/^CtC - //i;'                                       |
      sed 's| *\[no f-puzzles link today\]||;'                  |
