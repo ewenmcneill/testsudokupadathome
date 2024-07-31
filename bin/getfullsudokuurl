@@ -11,6 +11,7 @@
 # https://sudokupad.app/588su8gaub
 # https://sudokupad.app/SETTER/TITLE
 # https://app.crackingthecryptic.com/iix40twg6n
+# https://app.crackingthecryptic.com/sudoku/iix40twg6n
 #
 # which appear to work by fetching a regular page/JS, and *then* looking
 # up the shortlink at, eg
@@ -52,7 +53,7 @@
 # JavaScript it is *not* automated, and will have to be done by hand.)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-25
-# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-30
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-31
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -160,7 +161,8 @@ case "${URL}" in
       SHORTCODE=$(echo "${URL}" |
                   sed 's/https:\/\///;
                        s/^.*sudokupad.app\///;
-                       s/^app.crackingthecryptic.com\///;')
+                       s/^app.crackingthecryptic.com\///;
+		       s/^sudoku\///;')
       # DEBUG
       #echo "BASEURL=[${BASEURL}]"
       #echo "SHORTCODE=[${SHORTCODE}]"
