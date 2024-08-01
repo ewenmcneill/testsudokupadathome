@@ -48,9 +48,9 @@ if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" ]; then
   exit 1
 fi
 
-pdftotext "${FILE}" -                           |
-     grep -E '^|CtC:|CtC App:|Penpa:|tinyurl' |
-     grep -B 99 -E 'CtC:|Penpa:|tinyurl'        |
+pdftotext "${FILE}" -                                     |
+     grep -E '^|CtC:|CtC App:|Penpa:|tinyurl|sudokupad' |
+     grep -B 99 -E 'CtC:|Penpa:|tinyurl|sudokupad'        |
      (
      echo "day_title|puzzle_title|short_url";
      MONTH="${MONTH}" YEAR="${YEAR}" \
@@ -70,6 +70,7 @@ pdftotext "${FILE}" -                           |
                   } else {
                     $puzzle_url = $_;
                   }
+	          $puzzle_url =~ s/ .*$//;
 
                   print join("|", $title, $puzzle_title, $puzzle_url);
                 }'
