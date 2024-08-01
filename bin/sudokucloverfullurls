@@ -1,0 +1,92 @@
+#! /bin/sh
+# Attempt to extract the full URLs for the puzzles from Sudoku Clover PDFs
+#
+# Usage: sudokucloverfullurls FILENAME          MONTH YEAR 
+#    eg, sudokucloverfullurls sudokuclover.pdf  June  2024 >sudokuclover.tsv
+#    eg, sudokucloverfullurls sudokuclover.pdf  June  2024 
+#
+# Outputs a tab separated file (TSV) with:
+#
+# - puzzle month/number
+# - puzzle title
+# - short URL
+# - full URL (where possible)
+#
+# if output is redirected, or separated columns for viewing in less
+# (if run interactively)
+#
+# Requires GNU sed, for the \? extension.
+#
+# The first 12-15 Sudoku Clover Puzzle Pack PDFs included full URLs at
+# the end, but the later ones do not.  For consistency we attempt to
+# expand everything from the short codes, and ignore the full version.
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-08-01
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-08-01
+#---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+GETFULLSUDOKUURL="${BIN_DIR}/getfullsudokuurl"
+export GETFULLSUDOKUURL
+
+#---------------------------------------------------------------------------
+# Command line parsing
+
+FILE="$1"
+MONTH="$2"
+YEAR="$3"
+
+if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" ]; then
+  echo "Usage: sudokucloverfullurls FILENAME          MONTH YEAR" >&2
+  echo "   eg, sudokucloverfullurls sudokuclover.pdf  June  2024" >&2
+  exit 1
+fi
+
+pdftotext "${FILE}" -                           |
+     grep -E '^|CtC:|CtC App:|Penpa:|tinyurl' |
+     grep -B 99 -E 'CtC:|Penpa:|tinyurl'        |
+     (
+     echo "day_title|puzzle_title|short_url";
+     MONTH="${MONTH}" YEAR="${YEAR}" \
+     perl -lne 'BEGIN { $num = 1; }
+                if (/^\014/) {
+                  s/\014//;
+                  $puzzle_title = $num . ": " . $_;
+                  $titleprefix  = "$ENV{MONTH} $ENV{YEAR}: Puzzle " . 
+                                   $num++ . ": ";
+                  $title        = $titleprefix . $_;
+                }
+                if ((m|https?://.*sudokupad|) or (m|https?://.*tinyurl.com|) or
+                    (m|https://.*app.crackingthecryptic.com|)) {
+                  if (/: /) {
+                    ($solver_type, $puzzle_url) = split(/: /, $_);
+                    $puzzle_title .= " ($solver_type)";
+                  } else {
+                    $puzzle_url = $_;
+                  }
+
+                  print join("|", $title, $puzzle_title, $puzzle_url);
+                }'
+     ) |
+     # Expand the short URLs to full URLs
+     perl -F'\|' -alne '
+       if ($F[2] eq "short_url") {
+         print $_, "|full_url";
+       } elsif ($F[2] =~ /^http/) {
+         $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
+         chomp $full_url;
+         print join("|", @F, $full_url);
+       }'         |
+     tr -d '\015' |
+     if [ -t 1 ]; then
+       column -s'|' -t | less -S
+     else
+       # Convert to tab separated values for saving to a file
+       tr '|' '\011'
+     fi
