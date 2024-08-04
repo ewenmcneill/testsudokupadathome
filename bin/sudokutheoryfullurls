@@ -1,0 +1,115 @@
+#! /bin/sh
+# Attempt to extract the full URLs for the puzzles from Philip Newman PDFs
+#
+# Usage: sudokutheoryfullurls FILENAME     MONTH YEAR 
+#    eg, sudokutheoryfullurls example.pdf  June  2024 >example.tsv
+#    eg, sudokutheoryfullurls example.pdf  June  2024 
+#
+# Outputs a tab separated file (TSV) with:
+#
+# - puzzle month/number
+# - puzzle title
+# - short URL
+# - full URL (where possible)
+#
+# if output is redirected, or separated columns for viewing in less
+# (if run interactively)
+#
+# Requires GNU sed, for the \? extension, and the "echo -n" extension.
+#
+# Unlike Clover and Bill Murphy's PDFs, the actual links are not in
+# plain text, but hidden behind the links.  So we need to use
+# pdftohtml to get the links behind the text, which necessitates a lot
+# more cleanup of the parsed output.
+#
+# Since these links are hidden some of them are short URLs (eg, tinyurl)
+# and some of them are only full URLs.  This is specially true where two
+# variations of a puzzle are provided (eg, with coloured and grey lines),
+# but also happens in some other puzzles too.
+#
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-08-04
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-08-04
+#---------------------------------------------------------------------------
+
+BIN_DIR=$(dirname $0)
+if [ -z "${BIN_DIR}" ]; then BIN_DIR="."; fi
+case "${BIN_DIR}" in
+  .)  BIN_DIR="$(pwd)";            ;;
+  /*)                              ;;
+  *)  BIN_DIR="$(pwd)/${BIN_DIR}"; ;;
+esac
+GETFULLSUDOKUURL="${BIN_DIR}/getfullsudokuurl"
+export GETFULLSUDOKUURL
+
+#---------------------------------------------------------------------------
+# Command line parsing
+
+FILE="$1"
+MONTH="$2"
+YEAR="$3"
+
+if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" ]; then
+  echo "Usage: sudokutheoryfullurls FILENAME     MONTH YEAR" >&2
+  echo "   eg, sudokutheoryfullurls example.pdf  June  2024" >&2
+  exit 1
+fi
+
+pdftohtml -s -i -stdout "${FILE}"                                            |
+     sed '/<div id="page.*/{s/^.*$//;N;s/\n//;}'                           |
+     sed 's/\&\#160;/ /g;'                                                   |
+     grep -E '|href.*tinyurl|href.*sudokupad|href.*app.crackingthecryptic' |
+     sed '/tinyurl/{s|^.*<a href="http.*://tinyurl|https://tinyurl|; s/".*$//;}' |
+     sed '/app.crackingthecryptic/ {s|^.*app.crackingthecryptic|https://app.crackingthecryptic|; s/".*$//;}' |
+     grep -Ev "br/>|br>" | sed 's/^<p[^>]*>//; s|</p>||;'                |
+     grep -E '^|tinyurl|sudokupad|app.crackingthecryptic'                  |
+     grep -B 99 -E 'tinyurl|sudokupad|app.crackingthecryptic'                |
+     sed '/Just the [Ll]inks/Q;' |
+     (
+     echo "day_title|puzzle_title|short_url";
+     MONTH="${MONTH}" YEAR="${YEAR}" \
+     perl -lne 'BEGIN { $num = 1; $found_puzzle = 0; }
+                if (/^\014/) {
+                  s/\014//;
+                  if ($found_puzzle) {
+                    $num++;
+                    $found_puzzle = 0;
+                  }
+                  $puzzle_title = $num . ": " . $_;
+                  $titleprefix  = "$ENV{MONTH} $ENV{YEAR}: Puzzle " . 
+                                   $num . ": ";
+                  $title        = $titleprefix . $_;
+                }
+                if ((m|https?://.*sudokupad|) or (m|https?://.*tinyurl.com|) or
+                    (m|https://.*app.crackingthecryptic.com|)) {
+                  if (/: /) {
+                    ($solver_type, $puzzle_url) = split(/: /, $_);
+                    $puzzle_title .= " ($solver_type)";
+                  } else {
+                    $puzzle_url = $_;
+                  }
+                  $puzzle_url =~ s/ .*$//;
+
+                  $found_puzzle = 1;
+                  print join("|", $title, $puzzle_title, $puzzle_url);
+                }'
+     ) |
+     # Expand the short URLs to full URLs
+     perl -F'\|' -alne '
+       if ($F[2] eq "short_url") {
+         print $_, "|full_url";
+       } elsif ($F[2] =~ /^http/) {
+         if ($F[2] =~ /puzzleid=fpuzzles/) {
+           $full_url = $F[2];
+         } else {
+           $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
+         }
+         chomp $full_url;
+         print join("|", @F, $full_url);
+       }'         |
+     tr -d '\015' |
+     if [ -t 1 ]; then
+       column -s'|' -t | less -S
+     else
+       # Convert to tab separated values for saving to a file
+       tr '|' '\011'
+     fi
