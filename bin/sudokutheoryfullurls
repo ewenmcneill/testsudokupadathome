@@ -60,6 +60,7 @@ pdftohtml -s -i -stdout "${FILE}"                                            |
      grep -E '|href.*tinyurl|href.*sudokupad|href.*app.crackingthecryptic' |
      sed '/tinyurl/{s|^.*<a href="http.*://tinyurl|https://tinyurl|; s/".*$//;}' |
      sed '/app.crackingthecryptic/ {s|^.*app.crackingthecryptic|https://app.crackingthecryptic|; s/".*$//;}' |
+     sed '/sudokupad.app/ {s|^.*sudokupad.app|https://sudokupad.app|; s/".*$//;}' |
      grep -Ev "br/>|br>" | sed 's/^<p[^>]*>//; s|</p>||;'                |
      grep -E '^|tinyurl|sudokupad|app.crackingthecryptic'                  |
      grep -B 99 -E 'tinyurl|sudokupad|app.crackingthecryptic'                |
