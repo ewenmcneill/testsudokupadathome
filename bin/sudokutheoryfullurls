@@ -27,8 +27,12 @@
 # variations of a puzzle are provided (eg, with coloured and grey lines),
 # but also happens in some other puzzles too.
 #
+# Some later puzzle packs are only provided as (semi-formatted) posts,
+# and can only be cut'n'paste to .txt files.  If the file extension
+# provided is *.txt, then the text format parsing is used instead.
+#
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-08-04
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-08-04
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-08-05
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -54,7 +58,8 @@ if [ -z "${FILE}" -o -z "${MONTH}" -o -z "${YEAR}" ]; then
   exit 1
 fi
 
-pdftohtml -s -i -stdout "${FILE}"                                            |
+(case "${FILE}" in
+  *.pdf) pdftohtml -s -i -stdout "${FILE}"                                   |
      sed '/<div id="page.*/{s/^.*$//;N;s/\n//;}'                           |
      sed 's/\&\#160;/ /g; s/\%C2\%A0/ /g;'                                   |
      grep -E '|href.*tinyurl|href.*sudokupad|href.*app.crackingthecryptic' |
@@ -64,8 +69,17 @@ pdftohtml -s -i -stdout "${FILE}"                                            |
      grep -Ev "br/>|br>" | sed 's/^<p[^>]*>//; s|</p>||;'                |
      grep -E '^|tinyurl|sudokupad|app.crackingthecryptic'                  |
      grep -B 99 -E 'tinyurl|sudokupad|app.crackingthecryptic'                |
-     sed '/Just the [Ll]inks/Q;' |
-     (
+     sed '/Just the [Ll]inks/Q;'
+     ;;
+  *.txt)
+     cat "${FILE}"                                                           | 
+     egrep '\[.*\]|sudokupad.app'                                            |
+     sed '/\[.*\]/{s/^[^A-Z0-9 ]* */~/;}'                                    |
+     tr '~' '\014'                                                           |
+     sed '/sudokupad/{s|^.*https://sudokupad|https://sudokupad|; s/ .*$//;}'
+     ;;
+esac
+) | (
      echo "day_title|puzzle_title|short_url";
      MONTH="${MONTH}" YEAR="${YEAR}" \
      perl -lne 'BEGIN { $num = 1; $found_puzzle = 0; }
