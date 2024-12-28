@@ -18,7 +18,7 @@
 # Requires GNU sed, for the \? extension.
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-07-30
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-12-29
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -77,6 +77,10 @@ pdftotext "${FILE}" -                                          |
                   if ($puzzle_url =~ /tinyurl.com/) {
                     $puzzle_url =~ s/ .*$//;
                   }
+		  # Similarly SudokuPad short URLs do not have spaces either
+                  if ($puzzle_url =~ /sudokupad.app/) {
+                    $puzzle_url =~ s/ .*$//;
+                  }
                   print join("|", $title, $puzzle_title, $puzzle_url);
                 }'
      ) |
@@ -85,6 +89,7 @@ pdftotext "${FILE}" -                                          |
        if ($F[2] eq "short_url") {
          print $_, "|full_url";
        } elsif ($F[2] =~ /^http/) {
+         # warn "Running: $ENV{GETFULLSUDOKUURL} <$F[2]>\n";   # DEBUGING
          $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
          chomp $full_url;
          print join("|", @F, $full_url);
