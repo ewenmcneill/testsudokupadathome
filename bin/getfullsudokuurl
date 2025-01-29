@@ -53,7 +53,7 @@
 # JavaScript it is *not* automated, and will have to be done by hand.)
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2023-11-25
-# Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-31
+# Written by Ewen McNeill <ewen@naos.co.nz>, 2025-01-29
 #---------------------------------------------------------------------------
 #
 # SPDX-License-Identifier: MIT
@@ -101,6 +101,10 @@ if [ -z "${URL}" ]; then
   echo "   or: $0 SUDOKUPAD_SHORTURL" >&2
   exit 1
 fi
+
+# Clean up URL of trailing white space (including UTF-8 encoded white space)
+#
+URL=$(echo "${URL}" | sed 's/\xE2\x80\x8B//g; s/ //g;')
 
 case "${URL}" in
   # Get redirect from tinyurl to the full puzzle link, and cache the result
@@ -180,8 +184,11 @@ case "${URL}" in
 
                 PUZZLEDATA=$(cat "${PUZZLEDATAFILE}")
             else
-                #echo "Retrieving value for ${SITENAME}/${SHORTCODE}"   # DEBUG
                 API_URL="${SUDOKUPAD_SERVER}/api/puzzle/${SHORTCODE}"
+
+                #echo "Retrieving value for ${SITENAME}/${SHORTCODE}"   # DEBUG
+                #echo "Fetching: <${API_URL}>" >/tmp/url                # DEBUG
+                #curl -v "${API_URL}"                                   # DEBUG
                 PUZZLEDATA=$(curl -s "${API_URL}")
 
                 #echo "Fetched: [${PUZZLEDATA}]"                        # DEBUG

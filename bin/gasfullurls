@@ -18,7 +18,7 @@
 # Requires GNU sed, for the \? extension.
 #
 # Written by Ewen McNeill <ewen@naos.co.nz>, 2024-07-25
-# Updated by Ewen McNeill <ewen@naos.co.nz>, 2024-12-29
+# Updated by Ewen McNeill <ewen@naos.co.nz>, 2025-01-29
 #---------------------------------------------------------------------------
 
 BIN_DIR=$(dirname $0)
@@ -75,11 +75,13 @@ pdftotext "${FILE}" -                                          |
                   # TinyURLs do not have spaces, but there may be following
                   # text that we want to omit
                   if ($puzzle_url =~ /tinyurl.com/) {
-                    $puzzle_url =~ s/ .*$//;
+                    $puzzle_url =~ s/\s.*$//;
+                    $puzzle_url =~ s/[^[:ascii:]]//g;
                   }
 		  # Similarly SudokuPad short URLs do not have spaces either
                   if ($puzzle_url =~ /sudokupad.app/) {
-                    $puzzle_url =~ s/ .*$//;
+                    $puzzle_url =~ s/\s.*$//;
+                    $puzzle_url =~ s/[^[:ascii:]]//g;
                   }
                   print join("|", $title, $puzzle_title, $puzzle_url);
                 }'
@@ -89,7 +91,7 @@ pdftotext "${FILE}" -                                          |
        if ($F[2] eq "short_url") {
          print $_, "|full_url";
        } elsif ($F[2] =~ /^http/) {
-         # warn "Running: $ENV{GETFULLSUDOKUURL} <$F[2]>\n";   # DEBUGING
+         # warn "Running: $ENV{GETFULLSUDOKUURL} <$F[2]>\n";   # DEBUGGING
          $full_url = `$ENV{GETFULLSUDOKUURL} $F[2]`;
          chomp $full_url;
          print join("|", @F, $full_url);
